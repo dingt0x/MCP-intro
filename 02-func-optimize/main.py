@@ -5,7 +5,7 @@ from openai import OpenAI
 import uvicorn
 from conf import base_url, api_key, model_name, port
 from ops import ops_tools ,get_server_info
-from weather import get_weather,weather_tools
+# from weather import get_weather,weather_tools
 import asyncio
 from fastapi.responses import StreamingResponse
 
@@ -16,7 +16,8 @@ client = OpenAI(base_url=base_url, api_key=api_key)
 chat_memory = {}
 MAX_HISTORY = 20
 
-tools = ops_tools + weather_tools
+# tools = ops_tools + weather_tools
+tools = ops_tools
 
 @app.post("/chat")
 async def chat(request: Request):
@@ -54,10 +55,11 @@ async def chat(request: Request):
                     yield f"data: {json.dumps({'type': 'status', 'content': f'🛠️ 正在执行: {function_name}...'})}\n\n"
 
                     # 执行逻辑分支
-                    if function_name == "get_weather":
-                        city = function_args.get("city")
-                        result = get_weather(city)
-                    elif function_name == "get_server_info":
+                    # if function_name == "get_weather":
+                    #     city = function_args.get("city")
+                    #     result = get_weather(city)
+                    # elif function_name == "get_server_info":
+                    if function_name == "get_server_info":
                         platform = function_args.get("platform")
                         result = get_server_info(platform)
                     else:
