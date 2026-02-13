@@ -5,6 +5,7 @@ load_dotenv()
 api_key = os.getenv("AI_API_KEY")
 base_url = os.getenv("AI_BASE_URL" )
 model_name = os.getenv("AI_MODEL")
+port = os.getenv("APP_PORT", 8000)
 
 if not api_key:
     print("❌ 错误: 未在 .env 中检测到 AI_API_KEY")

@@ -5,32 +5,46 @@ import uvicorn
 from conf import base_url,api_key,model_name,port
 
 app = FastAPI()
+chat_memory = {}
+
 client = OpenAI(
     base_url=base_url,
     api_key=api_key
 
 )
 
+MAX_HISTORY = 5
+
 @app.post("/chat")
 async def chat(request: Request):
     try:
         data = await request.json()
         user_input = data.get("message")
+        session_id = "demo_user"
 
         if not user_input:
             raise HTTPException(status_code=400, detail="消息不能为空")
 
-        messages=[{"role": "user", "content": user_input}]
-        print(f"messages: ${messages}")
-        # 调用模型 (Level 0: 无记忆)
+        # 调用模型 (Level 1: 有记忆)
+        if session_id not in chat_memory:
+            chat_memory[session_id] = []
+
+        chat_memory[session_id].append({"role": "user", "content": user_input})
+        print(f"messages: {chat_memory[session_id]}")
+
         response = client.chat.completions.create(
             model=model_name,
-            messages=messages,
+            messages=chat_memory[session_id],
             temperature=1.3
 
         )
-
         answer = response.choices[0].message.content
+        chat_memory[session_id].append({"role": "assistant", "content": answer})
+
+        if len(chat_memory[session_id]) > MAX_HISTORY:
+            chat_memory[session_id] = chat_memory[session_id][-MAX_HISTORY:]
+            print(f"🧹 已清理 {session_id} 的旧记忆，保持最近 {MAX_HISTORY} 条")
+
         return {"answer": answer}
 
     except Exception as e:
@@ -47,6 +61,6 @@ async def index():
         return "<h3>index.html 未找到，请检查文件路径</h3>"
 
 if __name__ == "__main__":
-    port = int(port)
+    port = int(port) + 1
     print(f"🚀 服务已启动: http://127.0.0.1:{port}")
     uvicorn.run(app, host="0.0.0.0", port=port)

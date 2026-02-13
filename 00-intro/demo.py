@@ -19,4 +19,5 @@ if __name__ == '__main__':
         stream=False
     )
 
+    print(response.choices[0])
     print(response.choices[0].message.content)
