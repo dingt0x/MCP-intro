@@ -8,11 +8,19 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
 import uvicorn
-from conf import base_url, api_key, model_name, port
-from ops import ops_tools ,get_server_info
-# from weather import get_weather,weather_tools
 import asyncio
 from fastapi.responses import StreamingResponse
+from mcp_manager import MCPManager
+
+
+
+from ops import ops_tools ,get_server_info
+# from weather import get_weather,weather_tools
+from conf import base_url, api_key, model_name, port
+
+mcp_manager = MCPManager()
+
+all_tools = []
 
 
 app = FastAPI()
@@ -41,36 +49,30 @@ async def chat(request: Request):
             response = client.chat.completions.create(
                 model=model_name,
                 messages=chat_memory[session_id],
-                tools=tools,
+                tools=all_tools,
                 tool_choice="auto"
             )
 
             response_message = response.choices[0].message
 
             if response_message.tool_calls:
-                # 将模型的“调用意图”加入历史
                 chat_memory[session_id].append(response_message)
-
-                # 遍历所有工具调用（支持 AI 一次性调用多个工具）
                 for tool_call in response_message.tool_calls:
                     function_name = tool_call.function.name
                     function_args = json.loads(tool_call.function.arguments)
 
-                    # 动态推送状态给前端，告知正在调用哪个工具
                     yield f"data: {json.dumps({'type': 'status', 'content': f'🛠️ 正在执行: {function_name}...'})}\n\n"
 
-                    # 执行逻辑分支
-                    # if function_name == "get_weather":
-                    #     city = function_args.get("city")
-                    #     result = get_weather(city)
-                    # elif function_name == "get_server_info":
                     if function_name == "get_server_info":
-                        platform = function_args.get("platform")
-                        result = get_server_info(platform)
-                    else:
-                        result = {"error": "未定义的工具"}
+                        result = get_server_info(platform=function_args.get("platform"))
 
-                    # 将执行结果回传给历史记录
+                    elif function_name in mcp_manager.sessions:
+                        result = await mcp_manager.call_tool(function_name, function_args)
+
+                    else:
+                        result = {"error": f"未定义的工具: {function_name}"}
+
+                    # 将结果（无论是本地还是 MCP 来的）回传给历史记录
                     chat_memory[session_id].append({
                         "tool_call_id": tool_call.id,
                         "role": "tool",
@@ -119,7 +121,26 @@ async def index():
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
 
+
+@app.on_event("startup")
+async def startup_event():
+    global all_tools
+    try:
+        remote_tools = await mcp_manager.start()
+        print(remote_tools)
+        all_tools = tools + remote_tools
+        print(f"✅ 系统初始化成功！")
+        print(f"📦 本地工具: {[t['function']['name'] for t in ops_tools]}")
+        print(f"🌐 MCP 工具: {[t['function']['name'] for t in remote_tools]}")
+    except Exception as e:
+        print(f"❌ MCP 初始化失败: {e}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    # 优雅关闭，不留僵尸进程
+    await mcp_manager.stop()
+
 if __name__ == "__main__":
-    port = int(port) + 21
-    print(f"🚀 Level 2 (Function Call) 运行在: http://127.0.0.1:{port}")
+    port = int(port) + 30
+    print(f"🚀 Level 3 (mcp) 运行在: http://127.0.0.1:{port}")
     uvicorn.run(app, host="0.0.0.0", port=int(port))

@@ -1,7 +1,13 @@
+import os
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
 import uvicorn
+
 from conf import base_url,api_key,model_name,port
 
 app = FastAPI()
@@ -20,14 +26,16 @@ async def chat(request: Request):
         if not user_input:
             raise HTTPException(status_code=400, detail="消息不能为空")
 
-        messages=[{"role": "user", "content": user_input}]
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant"},
+            {"role": "user", "content": user_input}
+        ]
         print(f"messages: ${messages}")
         # 调用模型 (Level 0: 无记忆)
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
             temperature=1.3
-
         )
 
         answer = response.choices[0].message.content

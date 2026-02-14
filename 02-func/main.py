@@ -1,3 +1,8 @@
+import os
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 import json
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
@@ -5,7 +10,7 @@ from openai import OpenAI
 import uvicorn
 from conf import base_url, api_key, model_name, port
 from ops import ops_tools ,get_server_info
-from weather import get_weather,weather_tools
+# from weather import get_weather,weather_tools
 
 
 app = FastAPI()
@@ -14,7 +19,8 @@ client = OpenAI(base_url=base_url, api_key=api_key)
 chat_memory = {}
 MAX_HISTORY = 20
 
-tools = ops_tools + weather_tools
+# tools = ops_tools + weather_tools
+tools = ops_tools
 
 @app.post("/chat")
 async def chat(request: Request):
@@ -95,6 +101,6 @@ async def index():
         return f.read()
 
 if __name__ == "__main__":
-    port = int(port) + 2
+    port = int(port) + 20
     print(f"🚀 Level 2 (Function Call) 运行在: http://127.0.0.1:{port}")
     uvicorn.run(app, host="0.0.0.0", port=int(port))

@@ -1,7 +1,13 @@
+import os
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
 import uvicorn
+
 from conf import base_url,api_key,model_name,port
 
 app = FastAPI()
@@ -25,11 +31,11 @@ async def chat(request: Request):
         if not user_input:
             raise HTTPException(status_code=400, detail="消息不能为空")
 
-        # 调用模型 (Level 1: 有记忆)
         if session_id not in chat_memory:
             chat_memory[session_id] = []
 
         chat_memory[session_id].append({"role": "user", "content": user_input})
+
         print(f"messages: {chat_memory[session_id]}")
 
         response = client.chat.completions.create(
@@ -39,6 +45,7 @@ async def chat(request: Request):
 
         )
         answer = response.choices[0].message.content
+
         chat_memory[session_id].append({"role": "assistant", "content": answer})
 
         if len(chat_memory[session_id]) > MAX_HISTORY:
@@ -61,6 +68,6 @@ async def index():
         return "<h3>index.html 未找到，请检查文件路径</h3>"
 
 if __name__ == "__main__":
-    port = int(port) + 1
+    port = int(port) + 10
     print(f"🚀 服务已启动: http://127.0.0.1:{port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
