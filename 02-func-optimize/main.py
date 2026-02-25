@@ -31,7 +31,7 @@ async def chat(request: Request):
     session_id = data.get("session_id", "default_user")
 
     if session_id not in chat_memory:
-        chat_memory[session_id] = []
+        chat_memory[session_id] = [{"role": "system", "content": "You are a helpful assistant"}]
 
     chat_memory[session_id].append({"role": "user", "content": user_input})
 

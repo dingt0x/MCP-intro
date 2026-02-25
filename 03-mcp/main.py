@@ -11,6 +11,7 @@ import uvicorn
 import asyncio
 from fastapi.responses import StreamingResponse
 from mcp_manager import MCPManager
+from contextlib import asynccontextmanager
 
 
 
@@ -23,7 +24,7 @@ mcp_manager = MCPManager()
 all_tools = []
 
 
-app = FastAPI()
+
 client = OpenAI(base_url=base_url, api_key=api_key)
 
 chat_memory = {}
@@ -32,6 +33,25 @@ MAX_HISTORY = 20
 # tools = ops_tools + weather_tools
 tools = ops_tools
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global all_tools
+    try:
+        remote_tools = await mcp_manager.start()
+        print(remote_tools)
+        all_tools = tools + remote_tools
+        print("✅ 系统初始化成功！")
+        print(f"📦 本地工具: {[t['function']['name'] for t in ops_tools]}")
+        print(f"🌐 MCP 工具: {[t['function']['name'] for t in remote_tools]}")
+    except Exception as e:
+        print(f"❌ MCP 初始化失败: {e}")
+    yield
+    await mcp_manager.stop()
+
+
+
+app = FastAPI(lifespan=lifespan)
 @app.post("/chat")
 async def chat(request: Request):
     data = await request.json()
@@ -39,7 +59,7 @@ async def chat(request: Request):
     session_id = data.get("session_id", "default_user")
 
     if session_id not in chat_memory:
-        chat_memory[session_id] = []
+        chat_memory[session_id] = [{"role": "system", "content": "You are a helpful assistant"}]
 
     chat_memory[session_id].append({"role": "user", "content": user_input})
 
@@ -72,7 +92,6 @@ async def chat(request: Request):
                     else:
                         result = {"error": f"未定义的工具: {function_name}"}
 
-                    # 将结果（无论是本地还是 MCP 来的）回传给历史记录
                     chat_memory[session_id].append({
                         "tool_call_id": tool_call.id,
                         "role": "tool",
@@ -80,7 +99,6 @@ async def chat(request: Request):
                         "content": json.dumps(result, ensure_ascii=False),
                     })
 
-                # 第二次调用：获取流式总结
                 yield f"data: {json.dumps({'type': 'status', 'content': '🚀 正在汇总数据并生成报告...'})}\n\n"
 
                 second_res = client.chat.completions.create(
@@ -121,24 +139,6 @@ async def index():
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
 
-
-@app.on_event("startup")
-async def startup_event():
-    global all_tools
-    try:
-        remote_tools = await mcp_manager.start()
-        print(remote_tools)
-        all_tools = tools + remote_tools
-        print(f"✅ 系统初始化成功！")
-        print(f"📦 本地工具: {[t['function']['name'] for t in ops_tools]}")
-        print(f"🌐 MCP 工具: {[t['function']['name'] for t in remote_tools]}")
-    except Exception as e:
-        print(f"❌ MCP 初始化失败: {e}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    # 优雅关闭，不留僵尸进程
-    await mcp_manager.stop()
 
 if __name__ == "__main__":
     port = int(port) + 30

@@ -32,7 +32,7 @@ async def chat(request: Request):
             raise HTTPException(status_code=400, detail="消息不能为空")
 
         if session_id not in chat_memory:
-            chat_memory[session_id] = []
+            chat_memory[session_id] = [{"role": "system", "content": "You are a helpful assistant"}]
 
         chat_memory[session_id].append({"role": "user", "content": user_input})
 

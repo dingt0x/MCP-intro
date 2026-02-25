@@ -3,10 +3,12 @@ import asyncio
 from contextlib import AsyncExitStack  # 关键：用来保持连接不中断
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from pathlib import Path
 
+default_mcp_config = Path.home() / ".config" / "mcp_intro_config.json"
 
 class MCPManager:
-    def __init__(self, config_path="mcp_config.json"):
+    def __init__(self, config_path=str(default_mcp_config)):
         self.config_path = config_path
         # 存储已连接的会话，格式：{ "工具名": session_object }
         self.sessions = {}
@@ -17,9 +19,21 @@ class MCPManager:
 
     async def start(self):
         # 1. 读取你写好的 mcp_config.json
-        with open(self.config_path, "r") as f:
-            config = json.load(f)
+        config_path = Path(self.config_path)
+        if not config_path.exists():
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text("{}", encoding="utf-8")
 
+
+        with config_path.open("r", encoding="utf-8") as f:
+            _config = json.load(f)
+        # with open(self.config_path, "r") as f:
+        #     config = json.load(f)
+
+        if _config == "":
+            config = "{}"
+        else:
+            config = _config
         # 2. 遍历配置里的每一个 Server
         for name, srv_config in config.get("mcpServers", {}).items():
             # 准备启动参数（就是你 JSON 里的那些字段）
